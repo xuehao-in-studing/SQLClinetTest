@@ -16,8 +16,8 @@ import com.zaxxer.hikari.*;
  * 1.每个客户端进入时，读取最新的一条数据，都向数据库新增一条数据。接着下一个客户端读取最后一条新增的数据。
  * 2.管理客户端进入时，根据学生们的成绩给学生进行评级，90-100A，75-90B，60-75C，其余D(新建column)
  * 
- * 需要解决的问题： 1. 报错：HikariPool-1 - Connection is not available, request timed out
- * after 30001ms.
+ * 运行前需要先打开mysql服务器。 需要解决的问题： 1. 报错：HikariPool-1 - Connection is not available,
+ * request timed out after 30001ms.
  * 我已经定义了连接池的最大连接数为20，但是开启的线程只有10个，也就是十个客户端去访问，但是还是会报这样的错误，修改了最大连接数也没有用，问题出在哪里？
  * 问题解决：因为connection的关闭位置不对，要在try-catch内部关闭连接，或者直接采用try(resources)的方法。
  * 更推荐采用try(resources)的方法，时间更快，使用手动close的方法效率太低.
@@ -37,19 +37,16 @@ public class App {
 			public void run() {
 				// TODO Auto-generated method stub
 				String[] argStrings = DataGenerator.generate();
-				try {
-					sqlExecuter.insertLine(argStrings);
-				} catch (SQLException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
+				sqlExecuter.insertLine(argStrings);
 			}
 		};
 		long start = System.currentTimeMillis();
-		for (int i = 0; i < 75; i++) {
+		for (int i = 0; i < 10; i++) {
 			Thread thread = new Thread(() -> {
-				String string = "select * from students where grade=3 and score >=90;";
-				sqlExecuter.queryAll(string).forEach(System.out::println);
+				// 先插入一行数据，在进行查询
+				String[] insertString = DataGenerator.generate();
+				System.out.println("insert data: " + Arrays.toString(insertString));
+				sqlExecuter.insertLine(insertString);
 			});
 			thread.setName(String.format("Thread->%d", i));
 
@@ -61,6 +58,10 @@ public class App {
 		for (Thread thread : threadList) {
 			thread.join();
 		}
+		
+		String string = "select * from students";
+		sqlExecuter.queryAll(string).forEach(System.out::println);
+		
 		long end = System.currentTimeMillis();
 		System.out.println(String.format("All thread is execute over,execute time:%dms", end - start));
 	}
@@ -203,7 +204,7 @@ class SQLExecuter {
 		}
 	}
 
-	public void insertLine(String... args) throws SQLException {
+	public void insertLine(String... args) {
 		// 插入sql
 		String[] values = args.clone();
 		String insertString = "INSERT INTO students (name,gender,grade,score) VALUES (?,?,?,?)";
@@ -222,12 +223,15 @@ class SQLExecuter {
 					System.out.println(id);
 				} catch (Exception e) {
 					// TODO: handle exception
+					System.out.println(e.toString());
 				}
 			} catch (Exception e) {
 				// TODO: handle exception
+				System.out.println(e.toString());
 			}
 		} catch (Exception e) {
 			// TODO: handle exception
+			System.out.println(e.toString());
 		}
 
 	}
